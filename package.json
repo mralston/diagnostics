@@ -1,0 +1,15 @@
+{
+  "name": "@mralston/diagnostics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vue 3 panel and composable for mralston/diagnostics. Compiled by the host application; see vite.js.",
+  "type": "module",
+  "main": "resources/js/index.js",
+  "exports": {
+    ".": "./resources/js/index.js",
+    "./vite": "./vite.js"
+  },
+  "peerDependencies": {
+    "vue": "^3.3"
+  }
+}

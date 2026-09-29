@@ -1,0 +1,59 @@
+{
+  "name": "mralston/diagnostics",
+  "description": "Run a suite of named checks against any Eloquent model, in parallel on the queue, with live progress, stored results and a drop-in Vue panel.",
+  "keywords": ["laravel", "diagnostics", "checks", "validation", "quality", "queue", "broadcasting"],
+  "homepage": "https://github.com/mralston/diagnostics",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Matt Ralston",
+      "email": "matt@mralston.co.uk",
+      "role": "Developer"
+    }
+  ],
+  "require": {
+    "php": "^8.4",
+    "illuminate/broadcasting": "^11.0|^12.0|^13.0",
+    "illuminate/bus": "^11.0|^12.0|^13.0",
+    "illuminate/console": "^11.0|^12.0|^13.0",
+    "illuminate/contracts": "^11.0|^12.0|^13.0",
+    "illuminate/database": "^11.0|^12.0|^13.0",
+    "illuminate/events": "^11.0|^12.0|^13.0",
+    "illuminate/http": "^11.0|^12.0|^13.0",
+    "illuminate/queue": "^11.0|^12.0|^13.0",
+    "illuminate/routing": "^11.0|^12.0|^13.0",
+    "illuminate/support": "^11.0|^12.0|^13.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^9.0|^10.0|^11.0",
+    "pestphp/pest": "^3.0|^4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Mralston\\Diagnostics\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Mralston\\Diagnostics\\Tests\\": "tests"
+    }
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Mralston\\Diagnostics\\DiagnosticsServiceProvider"
+      ],
+      "aliases": {
+        "Diagnostics": "Mralston\\Diagnostics\\Facades\\Diagnostics"
+      }
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
