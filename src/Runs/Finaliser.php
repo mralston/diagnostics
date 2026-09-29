@@ -30,7 +30,10 @@ class Finaliser
                 'finished_at' => now(),
             ]);
 
+        // reorder() drops the relation's ORDER BY position, which MySQL's
+        // only_full_group_by mode rejects alongside GROUP BY outcome.
         $counts = $run->results()
+            ->reorder()
             ->selectRaw('outcome, count(*) as aggregate')
             ->groupBy('outcome')
             ->pluck('aggregate', 'outcome');
