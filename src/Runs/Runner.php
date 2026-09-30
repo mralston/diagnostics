@@ -5,6 +5,7 @@ namespace Mralston\Diagnostics\Runs;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Mralston\Diagnostics\Check;
 use Mralston\Diagnostics\Enums\Outcome;
 use Mralston\Diagnostics\Enums\ResultStatus;
 use Mralston\Diagnostics\Enums\RunStatus;
@@ -45,9 +46,62 @@ class Runner
 
         EventEmitter::emit(new CheckStarted($run, $result));
 
+        $attributes = $this->evaluate($run, $result);
+        $finalOutcome = $attributes['outcome'];
+
+        $result->forceFill($attributes + [
+            'status' => ResultStatus::Completed,
+            'finished_at' => now(),
+        ])->save();
+
+        $column = $finalOutcome->countColumn();
+
+        DiagnosticRun::whereKey($run->id)->update([
+            $column => DB::raw("{$column} + 1"),
+            'last_activity_at' => now(),
+        ]);
+
+        $run->refresh();
+
+        EventEmitter::emit(new CheckCompleted($run, $result));
+
+        return $result;
+    }
+
+    /**
+     * Re-runs the check behind a finished result, after a fix, and records the
+     * new answer in place. The run's counts and outcome are recomputed, but its
+     * subject snapshot is left alone: every other check still describes the
+     * record as it was, so the run stays out of date until it is run again.
+     */
+    public function recheck(DiagnosticRun $run, DiagnosticResult $result): DiagnosticResult
+    {
+        $attributes = $this->evaluate($run, $result);
+
+        $result->forceFill($attributes + [
+            'status' => ResultStatus::Completed,
+            'finished_at' => now(),
+        ])->save();
+
+        app(Finaliser::class)->recount($run);
+
+        EventEmitter::emit(new CheckCompleted($run->refresh(), $result));
+
+        return $result;
+    }
+
+    /**
+     * Runs the check against a freshly loaded subject and returns the columns
+     * to record. Never throws: a check that throws is recorded as errored.
+     *
+     * @return array<string, mixed>
+     */
+    private function evaluate(DiagnosticRun $run, DiagnosticResult $result): array
+    {
         $started = hrtime(true);
         $error = null;
         $subject = null;
+        $check = null;
 
         try {
             $suite = $run->suiteDefinition();
@@ -95,29 +149,24 @@ class Runner
             Log::warning('Diagnostics check exceeded its advisory timeout.', ['run' => $run->id, 'check' => $result->check_class, 'duration_ms' => $durationMs]);
         }
 
-        $result->forceFill([
-            'status' => ResultStatus::Completed,
+        // A fix is offered for a problem the check itself flagged, never for a
+        // check that could not run, and only when the check has a fix at all.
+        $fixable = $error === null
+            && in_array($finalOutcome, [Outcome::Failed, Outcome::Warning], true)
+            && $check instanceof Check
+            && $check->isFixable()
+            && $outcome->offersFix();
+
+        return [
             'outcome' => $finalOutcome,
             'downgraded' => $downgraded,
             'summary' => $error !== null ? ($outcome->summary ?? 'The check could not be completed.') : $outcome->summary,
             'findings' => $this->limitFindings($findings),
             'error' => $error,
-            'finished_at' => now(),
             'duration_ms' => $durationMs,
-        ])->save();
-
-        $column = $finalOutcome->countColumn();
-
-        DiagnosticRun::whereKey($run->id)->update([
-            $column => DB::raw("{$column} + 1"),
-            'last_activity_at' => now(),
-        ]);
-
-        $run->refresh();
-
-        EventEmitter::emit(new CheckCompleted($run, $result));
-
-        return $result;
+            'fixable' => $fixable,
+            'fix_label' => $fixable ? $check->fixLabel() : null,
+        ];
     }
 
     /**

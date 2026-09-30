@@ -26,6 +26,7 @@ class SuiteController
                 'key' => $suite->getKey(),
                 'label' => $suite->getLabel(),
                 'categories' => $suite->checks()->pluck('category')->unique()->values()->all(),
+                'can_fix' => $suite->authorizesFix($request->user(), $subject),
             ],
             'subject' => [
                 'type' => $subject->getMorphClass(),

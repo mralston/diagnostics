@@ -5,6 +5,7 @@ namespace Mralston\Diagnostics;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Mralston\Diagnostics\Console\FixCommand;
 use Mralston\Diagnostics\Console\ListCommand;
 use Mralston\Diagnostics\Console\PruneCommand;
 use Mralston\Diagnostics\Console\ReapCommand;
@@ -41,6 +42,7 @@ class DiagnosticsServiceProvider extends ServiceProvider
 
             $this->commands([
                 RunCommand::class,
+                FixCommand::class,
                 ListCommand::class,
                 PruneCommand::class,
                 ReapCommand::class,

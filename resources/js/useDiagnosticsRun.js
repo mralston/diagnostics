@@ -36,6 +36,7 @@ export function useDiagnosticsRun(options) {
     const starting = ref(false);
     const error = ref(null);
     const transport = ref('none'); // 'echo' | 'poll' | 'none'
+    const fixing = ref(null); // id of the result whose fix is being applied
     const waitedSince = ref(null);
 
     const timers = reactive({ poll: null, refresh: null, wait: null });
@@ -124,6 +125,35 @@ export function useDiagnosticsRun(options) {
             error.value = e;
         } finally {
             loading.value = false;
+        }
+    }
+
+    /** What the fix for a result will ask. Resolves to { label, description, questions }. */
+    function fixQuestions(result) {
+        return client.fixQuestions(run.value.id, result.id);
+    }
+
+    /**
+     * Applies the fix for a result. Resolves to { fix, result, run, gate } and takes the
+     * returned run and gate as current. Rejects on invalid answers (422), with the errors
+     * keyed by question name on error.errors.
+     */
+    async function applyFix(result, answers = {}) {
+        if (fixing.value !== null) return null;
+        fixing.value = result.id;
+        try {
+            const data = await client.fix(run.value.id, result.id, answers);
+            setRun(data.run);
+            gate.value = data.gate;
+            return data;
+        } catch (e) {
+            const body = e.response?.data ?? e.data ?? null;
+            e.status = e.status ?? e.response?.status;
+            e.errors = body?.errors ?? null;
+            e.serverMessage = body?.message ?? null;
+            throw e;
+        } finally {
+            fixing.value = null;
         }
     }
 
@@ -284,6 +314,9 @@ export function useDiagnosticsRun(options) {
         starting,
         error,
         transport,
+        fixing,
+        fixQuestions,
+        applyFix,
         load,
         start,
         refresh,

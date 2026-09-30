@@ -5,6 +5,7 @@ namespace Mralston\Diagnostics\Models;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Mralston\Diagnostics\Enums\Outcome;
 use Mralston\Diagnostics\Enums\ResultStatus;
 use Mralston\Diagnostics\Finding;
@@ -28,6 +29,9 @@ use Mralston\Diagnostics\Finding;
  * @property CarbonInterface|null $started_at
  * @property CarbonInterface|null $finished_at
  * @property int|null $duration_ms
+ * @property bool $fixable
+ * @property string|null $fix_label
+ * @property CarbonInterface|null $fixed_at
  */
 class DiagnosticResult extends Model
 {
@@ -49,12 +53,19 @@ class DiagnosticResult extends Model
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
             'duration_ms' => 'integer',
+            'fixable' => 'boolean',
+            'fixed_at' => 'datetime',
         ];
     }
 
     public function run(): BelongsTo
     {
         return $this->belongsTo(DiagnosticRun::class, 'run_id');
+    }
+
+    public function fixes(): HasMany
+    {
+        return $this->hasMany(DiagnosticFix::class, 'result_id');
     }
 
     /** @return Finding[] */

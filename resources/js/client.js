@@ -48,6 +48,8 @@ export function createClient(baseUrl = '/diagnostics') {
         runs: (suite, subjectId, page = 1) => request('GET', `${base}/${suite}/${subjectId}/runs?page=${page}`),
         run: (runId) => request('GET', `${base}/runs/${runId}`),
         result: (runId, resultId) => request('GET', `${base}/runs/${runId}/results/${resultId}`),
+        fixQuestions: (runId, resultId) => request('GET', `${base}/runs/${runId}/results/${resultId}/fix`),
+        fix: (runId, resultId, answers = {}) => request('POST', `${base}/runs/${runId}/results/${resultId}/fix`, { answers }),
     };
 }
 

@@ -14,6 +14,8 @@ final class Result implements Arrayable
     /** @var Finding[] */
     private array $findings = [];
 
+    private bool $offersFix = true;
+
     public function __construct(
         public readonly Outcome $outcome,
         public ?string $summary = null,
@@ -61,6 +63,22 @@ final class Result implements Arrayable
         }
 
         return $this;
+    }
+
+    /**
+     * Do not offer the check's fix for this result, because this particular
+     * problem is not one the fix can put right.
+     */
+    public function withoutFix(): self
+    {
+        $this->offersFix = false;
+
+        return $this;
+    }
+
+    public function offersFix(): bool
+    {
+        return $this->offersFix;
     }
 
     /** @return Finding[] */

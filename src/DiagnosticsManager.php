@@ -2,6 +2,9 @@
 
 namespace Mralston\Diagnostics;
 
+use Mralston\Diagnostics\Fixes\Fixer;
+use Mralston\Diagnostics\Models\DiagnosticFix;
+use Mralston\Diagnostics\Models\DiagnosticResult;
 use Illuminate\Database\Eloquent\Model;
 use Mralston\Diagnostics\Data\RunStatusData;
 use Mralston\Diagnostics\Enums\Executor;
@@ -165,6 +168,16 @@ class DiagnosticsManager
             ->first();
 
         return new Gate($definition, $subject, $run, $definition->acceptableOutcomes());
+    }
+
+    /**
+     * Applies the fix behind a finished result and re-checks it. See Fixer.
+     *
+     * @param  array<string, mixed>  $answers  keyed by question name
+     */
+    public function fix(DiagnosticResult $result, array $answers = [], mixed $user = null): DiagnosticFix
+    {
+        return app(Fixer::class)->fix($result, $answers, $user);
     }
 
     public function dispatcher(): Dispatcher

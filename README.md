@@ -3,7 +3,8 @@
 Unit tests for your records. Write small, named checks against an Eloquent model, and this
 package runs them as a suite: in parallel on your queue, with live progress in the browser,
 every result stored, a console command for scripts and CI, and a queue job that can gate the
-next step of a chain on a pass.
+next step of a chain on a pass. A check that knows how to put its problem right can offer a
+Fix button, asking for anything it needs to know first.
 
 Think of a lettings site that checks each property listing before it goes live: is the rent in
 a sensible range for the area, is there a floor plan, does the EPC rating look real? Each of
@@ -16,6 +17,7 @@ with a primary key can be a subject.
 - [Configuration](#configuration)
 - [Registering a suite](#registering-a-suite)
 - [Writing checks](#writing-checks)
+- [Fixing problems](#fixing-problems)
 - [Running a suite](#running-a-suite)
 - [The Vue panel](#the-vue-panel)
 - [Reading results from code](#reading-results-from-code)
@@ -206,6 +208,8 @@ public function boot(): void
 | `parallelBatches()` | A batch count for this suite only |
 | `disable()` | Check classes to leave out |
 | `acceptable()` | Run outcomes that open the gate and let the chain job continue. Defaults to `passed` and `passed_with_warnings` |
+| `authorizeFix()` | Who may apply fixes. Defaults to `authorize()` |
+| `afterFix()` | Work to do after every successful fix, such as recalculating totals. See [Fixing problems](#fixing-problems) |
 
 A class may have more than one suite. When it does, name the suite wherever the API takes an
 optional suite key.
@@ -291,6 +295,175 @@ parking. Skips do not affect the outcome.
 
 `php artisan diagnostics:list listing-check` shows every discovered check, its category, whether
 it can fail and which batch it lands in.
+
+## Fixing problems
+
+A check that knows how to put its problem right can have a `fix()` method. Its failed and
+warning results then carry a Fix button in the panel, and can be fixed from code or the console
+too. A fix is ordinary application code: it may save the subject, touch related records or call
+services, because unlike `run()` it is meant to change things.
+
+**A fix that needs nothing.** Photos on a listing should lead with the front of the property.
+The check can put them in order itself:
+
+```php
+class PhotosInOrder extends Check
+{
+    protected string $title = 'Photos start with the front of the property';
+
+    protected string $fixLabel = 'Reorder photos';
+
+    protected ?string $fixDescription = 'Moves the exterior photos to the front, keeping the rest in their order.';
+
+    public function run(Listing $listing): Result
+    {
+        return $listing->photos->first()?->is_exterior
+            ? $this->pass()
+            : $this->fail('The first photo is not of the outside');
+    }
+
+    public function fix(Listing $listing): string
+    {
+        $listing->photos
+            ->sortBy(fn ($photo) => $photo->is_exterior ? 0 : 1)
+            ->values()
+            ->each(fn ($photo, $i) => $photo->update(['position' => $i + 1]));
+
+        return 'Exterior photos moved to the front';
+    }
+}
+```
+
+Pressing the button runs the fix straight away. Return a short message to show the user, or
+nothing.
+
+**A fix that asks questions.** When the fix needs information only a person has, declare the
+questions. The panel shows them in a dialog, the answers are validated, and the fix receives
+them as an array keyed by name:
+
+```php
+use Mralston\Diagnostics\Fixes\Question;
+
+class RentWithinAreaRange extends Check
+{
+    protected string $fixLabel = 'Correct the rent';
+
+    // ... run() as before
+
+    public function fixQuestions(mixed $listing): array
+    {
+        return [
+            Question::number('monthly_rent', 'Monthly rent')
+                ->suffix('£ a month')
+                ->default($listing->monthly_rent)
+                ->rules('required|numeric|min:100'),
+            Question::select('period', 'The landlord quoted it', ['month' => 'per month', 'week' => 'per week'])
+                ->required(),
+        ];
+    }
+
+    public function fix(Listing $listing, array $answers): string
+    {
+        $monthly = $answers['period'] === 'week'
+            ? round($answers['monthly_rent'] * 52 / 12, 2)
+            : $answers['monthly_rent'];
+
+        $listing->update(['monthly_rent' => $monthly]);
+
+        return "Rent set to £{$monthly} a month";
+    }
+}
+```
+
+Questions that never change can go in a `$fixQuestions` property instead, as `Question` objects
+or plain arrays with the same keys:
+
+```php
+protected array $fixQuestions = [
+    ['name' => 'reason', 'type' => 'textarea', 'label' => 'Why is there no floor plan?', 'rules' => 'required|max:500'],
+];
+```
+
+Override `fixQuestions($subject)` when the questions depend on the record, such as one
+question for each tenant who has not confirmed a viewing:
+
+```php
+public function fixQuestions(mixed $listing): array
+{
+    return $listing->viewings->whereNull('confirmed')
+        ->map(fn ($viewing) => Question::select("viewing_{$viewing->id}", $viewing->tenant_name, [
+            'yes' => 'Coming',
+            'no' => 'Cancelled',
+        ])->placeholder('No reply yet'))
+        ->values()
+        ->all();
+}
+```
+
+| Question type | Input | The fix receives |
+|---|---|---|
+| `text`, `textarea`, `email` | Text | A string, or null |
+| `number` | Number | An int or float, or null |
+| `date` | Date picker | A `Y-m-d` string, or null |
+| `select`, `radio` | A choice of `options` (value => label) | The chosen value, or null |
+| `checkbox` | A tick box | A boolean |
+
+Each question takes `label`, and optionally `help`, `default`, `placeholder`, `suffix` (a unit
+shown after the input) and `rules` in Laravel's validation syntax. An answer is optional
+unless its rules say `required`, and a choice must be one of its options.
+
+**Stopping a fix.** Call `$this->cannotFix('reason')` when the fix finds it cannot help, such as
+a missing record it would need. The reason is shown to the user, nothing the fix wrote is kept,
+and the Fix button stays for another try. A fix that throws anything else is recorded as
+errored, logged, and rolled back in the same way.
+
+**Withholding a fix.** A fix is offered for every failed or warning result of a check that has
+one. When a particular problem is not one the fix can solve, say so from `run()`:
+
+```php
+return $this->fail('There are no photos at all')->withoutFix();
+```
+
+**What happens when a fix runs.**
+
+1. The answers are validated against the questions, which are resolved against the record as
+   it is now. Invalid answers come back to the dialog with messages.
+2. The fix and the suite's `afterFix` callback run in one database transaction.
+3. The check runs again, and its result is updated in place with the new outcome.
+4. The run is marked as fixed, which makes it out of date: only one check has seen the change,
+   so the gate stays closed until the suite is run again. The panel starts that run for you.
+5. The attempt is recorded in `diagnostic_fixes` with who made it, the answers, the outcome
+   before and after, and any message, and the `CheckFixed` event is raised.
+
+Use `afterFix` for the work your application normally does after saving the subject, so a fixed
+record is the same as one corrected by hand. It receives a freshly loaded subject, the result
+and the answers:
+
+```php
+Diagnostics::suite('listing-check')
+    // ...
+    ->authorizeFix(fn ($user, Listing $listing) => $user?->can('update', $listing) && ! $listing->is_live)
+    ->afterFix(fn (Listing $listing) => $listing->refreshSearchIndex())
+    ->register();
+```
+
+**From code or the console.**
+
+```php
+$fix = Diagnostics::fix($result, ['monthly_rent' => 1450, 'period' => 'month'], auth()->user());
+
+$fix->status;     // FixStatus::Succeeded, Failed or Errored
+$fix->resolved(); // true when the check now passes
+$fix->message;
+```
+
+```sh
+php artisan diagnostics:fix 5521 --answer=monthly_rent=1450 --answer=period=month
+```
+
+`Diagnostics::fix()` throws `FixUnavailable` when the run has not finished or the result has no
+fix on offer, and a `ValidationException` for invalid answers. The command exits 0 when the
+check now passes, 1 when it does not, and 2 for invalid answers.
 
 ## Running a suite
 
@@ -431,9 +604,12 @@ createApp(DiagnosticsPanel, {
 | `finding-link` | | `(finding, result) => ({ href, label })` to link a finding to where it is fixed |
 | `copy` | | Override any string; see `DEFAULT_COPY` in the component |
 | `icon` | | SVG markup shown beside the heading in the accent colour. Omit for no icon |
+| `can-fix` | from the server | Show Fix buttons. By default the suite's `authorizeFix` decides |
+| `rerun-after-fix` | true | Start a fresh run after a successful fix, so every check sees the change |
 
 Events: `loaded` with the suite, run and gate; `started` with the run; `completed` with the
-run and the gate as the server sees it once the run has finished. Slots: `icon` (anything other
+run and the gate as the server sees it once the run has finished; `fixed` with the fix, the
+updated result and the gate after a fix. Slots: `icon` (anything other
 than an SVG string), `header-actions`, `result-extra` (per result), `footer` and `empty`.
 
 ```js
@@ -558,8 +734,9 @@ younger than `freshness.ttl_minutes`. `reason()` explains a closed gate in a sen
 | `CheckStarted` | A check begins | Run id, result id, position |
 | `CheckCompleted` | A check's result is stored | Outcome, summary, duration, the first few finding messages, running counts |
 | `RunCompleted` | The run is finalised | Outcome, counts, duration |
+| `CheckFixed` | A fix was attempted, whatever its outcome | Not broadcast; carries the `DiagnosticFix` |
 
-All four are ordinary Laravel events you can listen for; `RunCompleted` carries the run model.
+The first four are ordinary Laravel events you can listen for; `RunCompleted` carries the run model.
 They broadcast immediately on the private channel `diagnostics.run.{id}`, whose authorisation
 the package registers using the suite's `authorize` callback. Payloads are trimmed to stay
 inside Pusher's size limit; the full result is always in the database and the API. A
@@ -577,6 +754,8 @@ Mounted under `routes.prefix` with `routes.middleware`. Every route applies the 
 | `GET /diagnostics/{suite}/{subject}/runs` | Paginated run history |
 | `GET /diagnostics/runs/{run}` | A run with every result |
 | `GET /diagnostics/runs/{run}/results/{result}` | One result including error detail |
+| `GET /diagnostics/runs/{run}/results/{result}/fix` | The fix's label, description and questions, with defaults from the record now |
+| `POST /diagnostics/runs/{run}/results/{result}/fix` | Applies the fix with `answers`: 200 with the fix, result, run and gate; 422 for invalid answers; 409 when no fix is on offer. Also applies `authorizeFix` |
 
 ## Maintenance
 

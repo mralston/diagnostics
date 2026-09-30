@@ -39,6 +39,9 @@ class ResultResource extends JsonResource
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),
             'duration_ms' => $this->duration_ms,
+            'fixable' => $this->fixable,
+            'fix_label' => $this->fix_label,
+            'fixed_at' => $this->fixed_at?->toIso8601String(),
         ];
     }
 }

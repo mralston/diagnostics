@@ -29,6 +29,10 @@ final class Suite
 
     private ?Closure $resolveSubject = null;
 
+    private ?Closure $authorizeFix = null;
+
+    private ?Closure $afterFix = null;
+
     /** @var string[] */
     private array $categories = [];
 
@@ -84,6 +88,34 @@ final class Suite
     public function authorize(Closure $callback): self
     {
         $this->authorize = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Who may apply fixes. Fixes change the record, so a host will usually ask
+     * for more than it does to view a run. Defaults to the authorize callback.
+     *
+     * @param  Closure(mixed $user, Model $subject): bool  $callback
+     */
+    public function authorizeFix(Closure $callback): self
+    {
+        $this->authorizeFix = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Runs after every successful fix, inside the fix's transaction, with a
+     * freshly loaded subject: the place for the host's usual after-save work,
+     * such as recalculating totals or writing an activity log. Throwing here
+     * rolls the fix back.
+     *
+     * @param  Closure(Model $subject, \Mralston\Diagnostics\Models\DiagnosticResult $result, array $answers): void  $callback
+     */
+    public function afterFix(Closure $callback): self
+    {
+        $this->afterFix = $callback;
 
         return $this;
     }
@@ -233,6 +265,22 @@ final class Suite
         }
 
         return (bool) ($this->authorize)($user, $subject);
+    }
+
+    public function authorizesFix(mixed $user, Model $subject): bool
+    {
+        if ($this->authorizeFix === null) {
+            return $this->authorizes($user, $subject);
+        }
+
+        return (bool) ($this->authorizeFix)($user, $subject);
+    }
+
+    public function runAfterFix(Model $subject, \Mralston\Diagnostics\Models\DiagnosticResult $result, array $answers): void
+    {
+        if ($this->afterFix !== null) {
+            ($this->afterFix)($subject, $result, $answers);
+        }
     }
 
     public function subjectUsesSoftDeletes(): bool

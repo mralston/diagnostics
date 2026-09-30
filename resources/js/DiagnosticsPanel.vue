@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import CheckRow from './CheckRow.vue';
+import FixDialog from './FixDialog.vue';
 import { useDiagnosticsRun } from './useDiagnosticsRun.js';
 
 const props = defineProps({
@@ -28,9 +29,14 @@ const props = defineProps({
     // SVG markup for an icon beside the heading, drawn in the accent colour. Omit for none,
     // or use the "icon" slot for anything other than an SVG string.
     icon: { type: String, default: null },
+    // Show fix buttons. Null follows the server, which asks the suite's authorizeFix.
+    canFix: { type: Boolean, default: null },
+    // Start a fresh run after a fix succeeds, exactly as the Run again button would, so every
+    // check sees the change.
+    rerunAfterFix: { type: Boolean, default: true },
 });
 
-const emit = defineEmits(['loaded', 'started', 'completed']);
+const emit = defineEmits(['loaded', 'started', 'completed', 'fixed']);
 
 const DEFAULT_COPY = {
     run: 'Run :label',
@@ -55,6 +61,7 @@ const DEFAULT_COPY = {
     statusStale: 'Out of date',
     waiting: 'Waiting for a background worker to pick this up. It will start on its own.',
     stale: 'The record has changed since this run. Run again to check the current version.',
+    staleFixed: 'A fix has changed the record since this run. Run again to check everything against it.',
     abandoned: 'This run stopped before it finished. Run again to get a complete result.',
     showPassed: 'Show passed',
     hidePassed: 'Hide passed',
@@ -75,6 +82,16 @@ const DEFAULT_COPY = {
     allChecksPassed: 'All checks passed.',
     moreInfo: 'More info',
     lessInfo: 'Hide details',
+    fixIt: 'Fix it',
+    applying: 'Fixing…',
+    cancel: 'Cancel',
+    choose: 'Choose…',
+    fixedTrailer: 'fixed',
+    fixed: 'Fixed: :title.',
+    fixNotResolved: 'The fix for ":title" ran, but the check still reports a problem.',
+    fixFailed: 'Could not fix ":title": :message',
+    fixError: 'The fix for ":title" could not be applied.',
+    dismiss: 'Dismiss',
 };
 
 // Placeholders are whole words, so :failed never matches the start of :failedWord.
@@ -93,6 +110,73 @@ const diag = useDiagnosticsRun({
 });
 
 const showPassed = ref(!props.hidePassed);
+
+// Fixes: the dialog for the fix being asked about, and a note about the last attempt.
+const allowFix = computed(() => props.canFix ?? diag.suite.value?.can_fix ?? false);
+const dialog = ref(null); // { meta, item, errors, message }
+const fixNote = ref(null); // { cls, text }
+const fixBusy = computed(() => diag.fixing.value !== null);
+
+async function onFix(item) {
+    if (fixBusy.value || diag.isRunning.value) return;
+    fixNote.value = null;
+    let meta;
+    try {
+        meta = await diag.fixQuestions(item);
+    } catch (e) {
+        fixNote.value = { cls: 'bad', text: t('fixError', { title: item.title }) };
+        return;
+    }
+    if (!meta.questions || meta.questions.length === 0) {
+        await applyFix(item, {});
+        return;
+    }
+    dialog.value = { meta, item, errors: {}, message: null };
+}
+
+async function applyFix(item, answers) {
+    let data;
+    try {
+        data = await diag.applyFix(item, answers);
+    } catch (e) {
+        if (e.status === 422 && dialog.value) {
+            dialog.value = { ...dialog.value, errors: e.errors ?? {}, message: null };
+            return;
+        }
+        const text = e.serverMessage && e.status === 409
+            ? t('fixFailed', { title: item.title, message: e.serverMessage })
+            : t('fixError', { title: item.title });
+        if (dialog.value) dialog.value = { ...dialog.value, message: text };
+        else fixNote.value = { cls: 'bad', text };
+        return;
+    }
+    if (!data) return;
+
+    const { fix } = data;
+    // A fix that stopped itself keeps the dialog open with its reason, so the answers can be changed.
+    if (fix.status === 'failed' && dialog.value) {
+        dialog.value = { ...dialog.value, errors: {}, message: fix.message };
+        return;
+    }
+    dialog.value = null;
+
+    const rerun = fix.status === 'succeeded' && props.rerunAfterFix && props.canRun;
+    if (fix.status === 'succeeded') {
+        fixNote.value = fix.resolved
+            ? { cls: 'ok', text: t('fixed', { title: item.title }) }
+            : { cls: 'warn', text: t('fixNotResolved', { title: item.title }) };
+    } else if (fix.status === 'failed') {
+        fixNote.value = { cls: 'bad', text: t('fixFailed', { title: item.title, message: fix.message }) };
+    } else {
+        fixNote.value = { cls: 'bad', text: t('fixError', { title: item.title }) };
+    }
+
+    emit('fixed', fix, data.result, data.gate);
+
+    if (rerun) {
+        await start(true);
+    }
+}
 const label = computed(() => props.label ?? diag.suite.value?.label ?? '');
 const run = diag.run;
 const stale = computed(() => diag.isComplete.value && diag.gate.value && diag.gate.value.run_id === run.value?.id && !diag.gate.value.fresh);
@@ -186,7 +270,8 @@ function formatDuration(ms) {
     return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-async function start() {
+async function start(keepNote = false) {
+    if (keepNote !== true) fixNote.value = null;
     await diag.start();
     if (run.value) emit('started', run.value);
 }
@@ -223,7 +308,7 @@ watch(() => [run.value?.id, run.value?.status], async () => {
     }
 })();
 
-defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
+defineExpose({ start, fix: onFix, refresh: diag.refresh, reload: diag.load, state: diag });
 </script>
 
 <template>
@@ -251,12 +336,16 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
             <i :style="{ width: Math.round(diag.progress.value * 100) + '%' }"></i>
         </div>
 
+        <div v-if="fixNote" class="dx-notice dx-notice--fix" :class="fixNote.cls" role="status">
+            <span>{{ fixNote.text }}</span>
+            <button type="button" class="dx-toggle" @click="fixNote = null">{{ t('dismiss') }}</button>
+        </div>
         <div v-if="diag.error.value" class="dx-notice dx-notice--error" role="alert">
             {{ run ? t('startError') : t('loadError') }}
         </div>
         <div v-else-if="mode === 'waiting'" class="dx-notice" role="status">{{ t('waiting') }}</div>
         <div v-else-if="mode === 'abandoned'" class="dx-notice" role="status">{{ t('abandoned') }}</div>
-        <div v-else-if="stale" class="dx-notice" role="status">{{ t('stale') }}</div>
+        <div v-else-if="stale && !(fixNote && diag.isRunning.value)" class="dx-notice" role="status">{{ run?.fixed_at ? t('staleFixed') : t('stale') }}</div>
 
         <template v-if="mode === 'never'">
             <slot name="empty" :checks="diag.checks.value" />
@@ -285,13 +374,29 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
                     v-for="item in group.items"
                     :key="item.id"
                     :item="item"
-                    :copy="{ running: t('running'), downgraded: t('downgraded'), moreFindings: t('moreFindings') }"
+                    :copy="{ running: t('running'), downgraded: t('downgraded'), moreFindings: t('moreFindings'), fixIt: t('fixIt'), applying: t('applying'), fixedTrailer: t('fixedTrailer') }"
                     :finding-link="findingLink"
+                    :can-fix="allowFix && mode === 'done'"
+                    :fix-disabled="fixBusy || dialog !== null"
+                    :fixing="diag.fixing.value === item.id"
+                    @fix="onFix"
                 >
                     <template #extra="{ item: row }"><slot name="result-extra" :result="row" /></template>
                 </CheckRow>
             </template>
         </div>
+
+        <FixDialog
+            v-if="dialog"
+            :key="dialog.item.id"
+            :meta="dialog.meta"
+            :errors="dialog.errors"
+            :message="dialog.message"
+            :busy="fixBusy"
+            :copy="{ cancel: t('cancel'), applying: t('applying'), choose: t('choose') }"
+            @submit="(answers) => applyFix(dialog.item, answers)"
+            @cancel="dialog = null"
+        />
 
         <div v-if="mode !== 'never' || $slots.footer" class="dx-foot">
             <slot name="footer" :run="run" :state="diag">
@@ -384,6 +489,10 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 
 .dx-notice { padding: 10px 18px; font-size: 13px; color: var(--dx-muted); background: var(--dx-soft); border-bottom: 1px solid var(--dx-border); }
 .dx-notice--error { color: var(--dx-fail); }
+.dx-notice--fix { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.dx-notice--fix.ok { color: var(--dx-pass); }
+.dx-notice--fix.warn { color: var(--dx-warn); }
+.dx-notice--fix.bad { color: var(--dx-fail); }
 
 .dx-cat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 18px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dx-muted); }
 .dx-cat small { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
@@ -419,6 +528,9 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 .dx .dx-find__link { color: var(--dx-accent); text-decoration: none; font-weight: 500; }
 .dx .dx-find__link:hover { text-decoration: underline; }
 .dx-find__more, .dx-find__note { color: var(--dx-muted); }
+.dx-find__fix { margin-top: 8px !important; }
+.dx .dx-btn--small { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 5px 11px; }
+.dx .dx-btn--quiet { color: var(--dx-fg); background: var(--dx-surface); border-color: var(--dx-border); }
 .dx-find__error { color: var(--dx-err); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-word; }
 
 .dx-body { padding-bottom: 6px; }
@@ -433,6 +545,30 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 .dx-foot__counts { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
 .dx-k::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; background: var(--c); }
 .dx .dx-toggle { font: 500 12px var(--dx-font); color: var(--dx-muted); background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-decoration: underline; }
+
+/* The fix dialog: a native <dialog>, so it sits in the top layer above any host chrome. */
+.dx-dialog { width: min(480px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--dx-border); border-radius: var(--dx-radius); background: var(--dx-surface); color: var(--dx-fg); font-family: var(--dx-font); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25); }
+.dx-dialog::backdrop { background: rgba(20, 26, 23, 0.45); }
+.dx-dialog__form { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; margin: 0; }
+.dx .dx-dialog__title { margin: 0; font-size: 17px; font-weight: 600; line-height: 1.3; color: var(--dx-fg); }
+.dx .dx-dialog__check { margin: 2px 0 0; font-size: 13px; color: var(--dx-muted); }
+.dx .dx-dialog__desc { margin: 0; font-size: 14px; }
+.dx-dialog__fields { display: flex; flex-direction: column; gap: 12px; }
+.dx-field { display: flex; flex-direction: column; gap: 4px; }
+.dx .dx-field__label { display: block; margin: 0; padding: 0; font-size: 13px; font-weight: 600; color: var(--dx-fg); }
+.dx-field__req { color: var(--dx-fail); }
+.dx-field__control { display: flex; align-items: center; gap: 8px; }
+.dx .dx-field input:not([type="checkbox"]):not([type="radio"]), .dx .dx-field select, .dx .dx-field textarea { flex: 1 1 auto; width: 100%; min-width: 0; height: auto; margin: 0; padding: 7px 10px; font: 14px/1.4 var(--dx-font); color: var(--dx-fg); background: var(--dx-surface); border: 1px solid var(--dx-border); border-radius: 6px; box-shadow: none; }
+.dx .dx-field input:focus, .dx .dx-field select:focus, .dx .dx-field textarea:focus { outline: 2px solid var(--dx-accent); outline-offset: 1px; border-color: var(--dx-accent); }
+.dx-field--error input, .dx-field--error select, .dx-field--error textarea { border-color: var(--dx-fail) !important; }
+.dx-field__suffix { font-size: 13px; color: var(--dx-muted); white-space: nowrap; }
+.dx .dx-field__set { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 4px; }
+.dx .dx-field__set legend { margin-bottom: 2px; border: 0; width: auto; }
+.dx .dx-field__check { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 400; cursor: pointer; }
+.dx .dx-field__check input { margin: 0; }
+.dx .dx-field__help { margin: 0; font-size: 12.5px; color: var(--dx-muted); }
+.dx .dx-field__error, .dx .dx-dialog__message { margin: 0; font-size: 12.5px; color: var(--dx-fail); }
+.dx-dialog__actions { display: flex; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 520px) {
     .dx .dx-row__main { grid-template-columns: 22px minmax(0, 1fr) 16px; }

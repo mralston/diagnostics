@@ -68,6 +68,7 @@ class DiagnosticRun extends Model
             'subject_updated_at' => 'datetime',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'fixed_at' => 'datetime',
             'last_activity_at' => 'datetime',
             'duration_ms' => 'integer',
         ];
@@ -166,6 +167,10 @@ class DiagnosticRun extends Model
     {
         if (! $this->isComplete()) {
             return 'The run has not completed.';
+        }
+
+        if ($this->fixed_at !== null) {
+            return 'A fix has been applied since the last run.';
         }
 
         $ttl = (int) config('diagnostics.freshness.ttl_minutes', 1440);
