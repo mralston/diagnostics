@@ -511,6 +511,29 @@ $run->results;                    // DiagnosticResult models in order
 $run->counts();                   // ['passed' => 10, 'warning' => 1, ...]
 ```
 
+### In lists and tables
+
+`latestRuns()` fetches the latest run for a page of records in one query, keyed by record key.
+It accepts a collection, an array or a paginator. The `outcome` Blade component draws the same
+symbols as the panel, with the date in its tooltip, and fades a run that is out of date when
+given the record.
+
+```blade
+@php($runs = Diagnostics::latestRuns($listings, 'listing-check'))
+
+@foreach($listings as $listing)
+    {{ $listing->id }}
+    <x-diagnostics::outcome :run="$runs->get($listing->id)" :subject="$listing" />
+@endforeach
+```
+
+| Attribute | Default | Meaning |
+|---|---|---|
+| `run` | | The run, or null for nothing |
+| `subject` | | The record, to fade a run that is out of date |
+| `variant` | `solid` | `solid` for a white symbol on a filled circle, `outline` for a coloured symbol in a ring |
+| `size` | 16 | Pixels |
+
 ## Gating a process on a pass
 
 ```php

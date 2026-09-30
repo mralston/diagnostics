@@ -2,6 +2,7 @@
 
 namespace Mralston\Diagnostics;
 
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Mralston\Diagnostics\Console\ListCommand;
@@ -22,6 +23,10 @@ class DiagnosticsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
+        // <x-diagnostics::outcome :run="$run" /> and any other components in the package.
+        $this->loadViewsFrom(__DIR__.'/../resources/views', 'diagnostics');
+        Blade::anonymousComponentPath(__DIR__.'/../resources/views/components', 'diagnostics');
 
         if ($this->app->runningInConsole()) {
             $this->publishes([

@@ -101,6 +101,43 @@ class DiagnosticsManager
             ->first();
     }
 
+    /**
+     * The latest run for each of several subjects of one class, in a single query, keyed by
+     * subject key. Subjects that have never been run are absent. For lists and tables.
+     *
+     * @param  iterable<Model>|\Illuminate\Contracts\Pagination\Paginator  $subjects
+     * @return \Illuminate\Support\Collection<string, DiagnosticRun>
+     */
+    public function latestRuns(iterable $subjects, ?string $suite = null): \Illuminate\Support\Collection
+    {
+        // collect() on a paginator turns its models into arrays, so take its items instead.
+        if ($subjects instanceof \Illuminate\Contracts\Pagination\Paginator) {
+            $subjects = $subjects->items();
+        }
+
+        $subjects = collect($subjects)->filter(fn ($subject) => $subject instanceof Model)->values();
+
+        if ($subjects->isEmpty()) {
+            return collect();
+        }
+
+        $first = $subjects->first();
+        $definition = $this->resolve($first, $suite);
+        $ids = $subjects->map(fn (Model $subject) => (string) $subject->getKey())->unique()->values()->all();
+
+        $latestIds = DiagnosticRun::query()
+            ->selectRaw('max(id) as id')
+            ->where('suite', $definition->getKey())
+            ->where('subject_type', $first->getMorphClass())
+            ->whereIn('subject_id', $ids)
+            ->groupBy('subject_id');
+
+        return DiagnosticRun::query()
+            ->whereIn('id', $latestIds)
+            ->get()
+            ->keyBy(fn (DiagnosticRun $run) => (string) $run->subject_id);
+    }
+
     public function inFlight(Model $subject, ?string $suite = null): ?DiagnosticRun
     {
         return DiagnosticRun::forSubject($subject)
