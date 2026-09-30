@@ -428,9 +428,22 @@ createApp(DiagnosticsPanel, {
 | `hide-passed` | false | Start with passed checks hidden |
 | `finding-link` | | `(finding, result) => ({ href, label })` to link a finding to where it is fixed |
 | `copy` | | Override any string; see `DEFAULT_COPY` in the component |
+| `icon` | | SVG markup shown beside the heading in the accent colour. Omit for no icon |
 
-Events: `loaded`, `started` and `completed`, each with the run. Slots: `header-actions`,
-`result-extra` (per result), `footer` and `empty`.
+Events: `loaded`, `started` and `completed`, each with the run. Slots: `icon` (anything other
+than an SVG string), `header-actions`, `result-extra` (per result), `footer` and `empty`.
+
+```js
+createApp(DiagnosticsPanel, {
+    suite: 'listing-check',
+    subjectId: el.dataset.subject,
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">…</svg>',
+}).mount(el);
+```
+
+An advisory check (`$canFail = false`) that finds a problem is shown as a warning with the note
+"This is a warning only. It will not count as a failure." Change it with the `downgraded` key
+of `copy`.
 
 With Echo, the panel subscribes to the run's private channel. It re-reads the run on a slow
 timer as a safety net, and falls back to polling if the subscription fails.

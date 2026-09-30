@@ -23,6 +23,9 @@ const props = defineProps({
     findingLink: { type: Function, default: null },
     // Override any string. See DEFAULT_COPY.
     copy: { type: Object, default: () => ({}) },
+    // SVG markup for an icon beside the heading, drawn in the accent colour. Omit for none,
+    // or use the "icon" slot for anything other than an SVG string.
+    icon: { type: String, default: null },
 });
 
 const emit = defineEmits(['loaded', 'started', 'completed']);
@@ -33,7 +36,7 @@ const DEFAULT_COPY = {
     checking: 'Checking… :done of :total',
     queued: 'Queued',
     running: 'running…',
-    neverRun: ':total checks across :categories areas. Not run yet.',
+    neverRun: ':total checks across :categories areas. Takes a few seconds.',
     lastRun: 'last run :when',
     allPassed: 'all passed',
     problems: ':failed :failedWord, :warnings :warningsWord',
@@ -55,7 +58,6 @@ const DEFAULT_COPY = {
     hidePassed: 'Hide passed',
     completedIn: 'Completed in :duration',
     startedAt: 'Started :when',
-    takesSeconds: 'Takes a few seconds. You can carry on while it runs.',
     loadError: 'The checks could not be loaded.',
     startError: 'The run could not be started.',
     passed: 'passed',
@@ -65,7 +67,7 @@ const DEFAULT_COPY = {
     errored: 'errored',
     allOk: 'all ok',
     ofFailed: ':count of :total failed',
-    downgraded: 'Advisory: this check cannot fail a run.',
+    downgraded: 'This is a warning only. It will not count as a failure.',
     moreFindings: 'and :count more',
     allPassedInCategory: 'All :count passed',
 };
@@ -206,8 +208,11 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 </script>
 
 <template>
-    <section class="dx" :aria-busy="diag.isRunning.value ? 'true' : 'false'">
-        <header class="dx-head">
+    <div class="dx" role="region" :aria-label="label" :aria-busy="diag.isRunning.value ? 'true' : 'false'">
+        <div class="dx-head">
+            <div v-if="icon || $slots.icon" class="dx-head__icon" aria-hidden="true">
+                <slot name="icon"><span v-html="icon"></span></slot>
+            </div>
             <div class="dx-head__text">
                 <h2 class="dx-title">{{ label }}</h2>
                 <p class="dx-sub">{{ subline }}</p>
@@ -221,7 +226,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
                 :disabled="diag.isRunning.value || diag.starting.value || diag.loading.value"
                 @click="start"
             >{{ run ? t('runAgain') : t('run', { label }) }}</button>
-        </header>
+        </div>
 
         <div v-if="diag.isRunning.value" class="dx-progress" role="progressbar" :aria-valuenow="diag.completed.value" aria-valuemin="0" :aria-valuemax="diag.total.value">
             <i :style="{ width: Math.round(diag.progress.value * 100) + '%' }"></i>
@@ -256,12 +261,9 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
             </template>
         </div>
 
-        <footer class="dx-foot">
+        <div v-if="mode !== 'never' || $slots.footer" class="dx-foot">
             <slot name="footer" :run="run" :state="diag">
-                <template v-if="mode === 'never'">
-                    <span>{{ t('takesSeconds') }}</span>
-                </template>
-                <template v-else>
+                <template v-if="mode !== 'never'">
                     <span class="dx-foot__counts">
                         <span class="dx-k" style="--c: var(--dx-pass)"><b>{{ diag.counts.value.passed }}</b> {{ t('passed') }}</span>
                         <span v-if="diag.counts.value.warning" class="dx-k" style="--c: var(--dx-warn)"><b>{{ diag.counts.value.warning }}</b> {{ t('warnings') }}</span>
@@ -279,12 +281,15 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
                     </span>
                 </template>
             </slot>
-        </footer>
-    </section>
+        </div>
+    </div>
 </template>
 
 <style>
 /*
+ * Plain divs throughout, and no min-height, so a host's styles for section,
+ * header or footer elements cannot reach the panel.
+ *
  * Not scoped: the class names are namespaced with dx- instead, so a host can
  * restyle any part with ordinary CSS. Every colour, the font and the radius
  * come from custom properties with defaults here; override them on .dx or on
@@ -312,13 +317,19 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
     border: 1px solid var(--dx-border);
     border-radius: var(--dx-radius);
     overflow: hidden;
+    height: auto;
+    min-height: 0;
     text-align: left;
     line-height: 1.45;
 }
 .dx *, .dx *::before, .dx *::after { box-sizing: border-box; }
 
 .dx-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 14px 18px; border-bottom: 1px solid var(--dx-border); }
+.dx-head:last-child { border-bottom: 0; }
 .dx-head__text { flex: 1 1 240px; min-width: 0; }
+.dx-head__icon { flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--dx-accent); background: color-mix(in srgb, var(--dx-accent) 12%, var(--dx-surface)); }
+.dx-head__icon svg { width: 22px; height: 22px; display: block; }
+.dx-head__icon > span { display: contents; }
 .dx .dx-title { font-family: var(--dx-font); font-size: 17px; font-weight: 600; line-height: 1.3; margin: 0; padding: 0; border: 0; color: var(--dx-fg); letter-spacing: -0.005em; }
 .dx .dx-sub { font-size: 13px; color: var(--dx-muted); margin: 2px 0 0; }
 
