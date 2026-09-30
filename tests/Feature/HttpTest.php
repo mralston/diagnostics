@@ -84,3 +84,20 @@ it('refuses to start a run on a soft-deleted subject but still shows its history
     $this->actingAs($this->user())->postJson("/diagnostics/widgets/{$widget->id}/runs")->assertStatus(422);
     $this->actingAs($this->user())->getJson("/diagnostics/runs/{$run->id}")->assertOk();
 });
+
+it('sends plain values for every result field, never a placeholder object', function () {
+    $widget = $this->widget(['explode' => true]);
+
+    $run = $this->actingAs($this->user())
+        ->postJson("/diagnostics/widgets/{$widget->id}/runs")
+        ->assertCreated()
+        ->json();
+
+    foreach ($run['results'] as $result) {
+        expect($result['error'])->toBeIn([null, 'RuntimeException: Warp core breach']);
+    }
+
+    $history = $this->actingAs($this->user())->getJson("/diagnostics/widgets/{$widget->id}/runs")->json('data.0');
+
+    expect($history)->not->toHaveKey('results');
+});

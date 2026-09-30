@@ -15,7 +15,12 @@ const state = computed(() => {
 });
 
 const findings = computed(() => props.item.findings ?? []);
-const hasDetail = computed(() => state.value !== 'pending' && state.value !== 'running' && (findings.value.length > 0 || props.item.summary || props.item.error));
+// A skipped check's reason is already shown on the row, so it has nothing to expand.
+const hasDetail = computed(() => {
+    if (state.value === 'pending' || state.value === 'running') return false;
+    if (findings.value.length > 0 || props.item.error) return true;
+    return !!props.item.summary && state.value !== 'skipped' && state.value !== 'passed';
+});
 const openByDefault = computed(() => ['failed', 'warning', 'errored'].includes(state.value));
 const open = ref(openByDefault.value);
 watch(openByDefault, (value) => { open.value = value; });

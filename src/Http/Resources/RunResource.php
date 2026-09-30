@@ -17,7 +17,7 @@ class RunResource extends JsonResource
 
     public function toArray(Request $request): array
     {
-        return [
+        $data = [
             'id' => $this->id,
             'suite' => $this->suite,
             'subject_type' => $this->subject_type,
@@ -34,10 +34,17 @@ class RunResource extends JsonResource
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),
             'duration_ms' => $this->duration_ms,
-            'results' => $this->when($this->withResults, fn () => $this->results
+        ];
+
+        // Built by hand rather than with when(): these resources are turned into arrays
+        // directly, and when()'s placeholder only disappears inside a JSON response.
+        if ($this->withResults) {
+            $data['results'] = $this->results
                 ->map(fn (DiagnosticResult $result) => (new ResultResource($result))->toArray($request))
                 ->values()
-                ->all()),
-        ];
+                ->all();
+        }
+
+        return $data;
     }
 }

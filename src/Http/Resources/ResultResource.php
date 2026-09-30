@@ -35,7 +35,7 @@ class ResultResource extends JsonResource
             'findings' => $this->full
                 ? $findings
                 : array_map(fn (array $f) => ['message' => $f['message'] ?? '', 'data' => $f['data'] ?? []], $findings),
-            'error' => $this->when($this->full, $this->error),
+            'error' => $this->error,
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),
             'duration_ms' => $this->duration_ms,

@@ -67,14 +67,13 @@ const DEFAULT_COPY = {
     ofFailed: ':count of :total failed',
     downgraded: 'Advisory: this check cannot fail a run.',
     moreFindings: 'and :count more',
+    allPassedInCategory: 'All :count passed',
 };
 
+// Placeholders are whole words, so :failed never matches the start of :failedWord.
 const t = (key, replacements = {}) => {
-    let text = props.copy[key] ?? DEFAULT_COPY[key] ?? key;
-    for (const [name, value] of Object.entries(replacements)) {
-        text = text.split(`:${name}`).join(String(value));
-    }
-    return text;
+    const text = props.copy[key] ?? DEFAULT_COPY[key] ?? key;
+    return text.replace(/:([A-Za-z_]+)/g, (match, name) => (name in replacements ? String(replacements[name]) : match));
 };
 
 const diag = useDiagnosticsRun({
@@ -153,7 +152,8 @@ const groups = computed(() => diag.categories.value.map((group) => {
     const visible = showPassed.value || mode.value !== 'done'
         ? items
         : items.filter((i) => i.outcome !== 'passed');
-    return { name: group.name, items: visible, note, noteCls, hiddenAll: visible.length === 0 };
+    const hiddenAll = visible.length === 0;
+    return { name: group.name, items: visible, note: hiddenAll ? '' : note, noteCls, hiddenAll, total: items.length };
 }));
 
 const passedCount = computed(() => diag.counts.value.passed);
@@ -243,6 +243,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
                     <span>{{ group.name }}</span>
                     <small :class="group.noteCls">{{ group.note }}</small>
                 </div>
+                <div v-if="group.hiddenAll" class="dx-cat__passed">{{ t('allPassedInCategory', { count: group.total }) }}</div>
                 <CheckRow
                     v-for="item in group.items"
                     :key="item.id"
@@ -345,6 +346,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 .dx-cat small { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .dx-cat small.bad { color: var(--dx-fail); }
 .dx-cat small.warn { color: var(--dx-warn); }
+.dx-cat__passed { padding: 2px 18px 8px 50px; font-size: 13px; color: var(--dx-muted); }
 
 .dx-row + .dx-row { border-top: 1px solid var(--dx-soft); }
 .dx .dx-row__main { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 16px; align-items: center; gap: 10px; width: 100%; padding: 7px 18px; background: none; border: 0; margin: 0; font: inherit; font-size: 14px; color: inherit; text-align: left; cursor: default; }
