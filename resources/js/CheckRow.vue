@@ -58,7 +58,7 @@ function toggle() {
             </div>
             <div v-if="hidden > 0" class="dx-find__more">{{ (copy.moreFindings ?? 'and :count more').replace(':count', hidden) }}</div>
             <div v-if="item.error" class="dx-find__error">{{ item.error }}</div>
-            <div v-if="item.downgraded" class="dx-find__note">{{ copy.downgraded ?? 'Advisory: this check cannot fail a run.' }}</div>
+            <div v-if="item.downgraded" class="dx-find__note">{{ copy.downgraded ?? 'This is a warning only. It will not count as a failure.' }}</div>
             <slot name="extra" :item="item" />
         </div>
     </div>
