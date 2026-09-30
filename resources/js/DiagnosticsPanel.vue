@@ -341,7 +341,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
     --dx-warn: #c27a0e;
     --dx-fail: #c4342d;
     --dx-skip: #8a949d;
-    --dx-err: #6d3fb5;
+    --dx-err: #c4342d;
 
     font-family: var(--dx-font);
     color: var(--dx-fg);
@@ -407,7 +407,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 .dx-ic.warning { background: var(--dx-warn); }
 .dx-ic.failed { background: var(--dx-fail); }
 .dx-ic.skipped { background: var(--dx-skip); }
-.dx-ic.errored { background: var(--dx-err); }
+.dx-ic.errored { background: transparent; color: var(--dx-err); box-shadow: inset 0 0 0 1.5px var(--dx-err); }
 .dx-ic.pending { border: 2px dotted var(--dx-border); }
 .dx-ic.running { border: 2px solid var(--dx-border); border-top-color: var(--dx-accent); animation: dx-spin 0.9s linear infinite; }
 @keyframes dx-spin { to { transform: rotate(360deg); } }

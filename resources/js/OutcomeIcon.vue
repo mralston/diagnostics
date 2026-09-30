@@ -11,6 +11,6 @@ defineProps({
         <svg v-else-if="state === 'failed'" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         <svg v-else-if="state === 'warning'" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M8 3v6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="8" cy="12.5" r="1.4" fill="currentColor"/></svg>
         <svg v-else-if="state === 'skipped'" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M3.5 8h9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-        <svg v-else-if="state === 'errored'" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M9.5 2L4 9h4l-1.5 5L12 7H8l1.5-5z" fill="currentColor"/></svg>
+        <svg v-else-if="state === 'errored'" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true"><path d="M8 3v6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="8" cy="12.5" r="1.4" fill="currentColor"/></svg>
     </span>
 </template>

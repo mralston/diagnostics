@@ -531,7 +531,7 @@ given the record.
 |---|---|---|
 | `run` | | The run, or null for nothing |
 | `subject` | | The record, to fade a run that is out of date |
-| `variant` | `solid` | `solid` for a white symbol on a filled circle, `outline` for a coloured symbol in a ring |
+| `variant` | `solid` | `solid` for a white symbol on a filled circle, `outline` for a coloured symbol in a ring. An errored run is always an outline, a red exclamation mark in a red ring |
 | `size` | 16 | Pixels |
 
 ## Gating a process on a pass

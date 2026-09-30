@@ -65,3 +65,11 @@ it('accepts a paginator of subjects', function () {
 
     expect(Diagnostics::latestRuns($page)->keys()->map(fn ($k) => (string) $k)->all())->toBe([(string) $a->id]);
 });
+
+it('draws an errored run as a red outline', function () {
+    $run = Diagnostics::run($this->widget(['explode' => true]));
+
+    $html = Blade::render('<x-diagnostics::outcome :run="$run" />', ['run' => $run]);
+
+    expect($html)->toContain('dx-outcome--errored')->toContain('fill="none" stroke="#c4342d"')->toContain('could not finish');
+});

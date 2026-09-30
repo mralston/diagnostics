@@ -15,12 +15,13 @@
         'passed' => ['colour' => '#1f8a5b', 'label' => 'passed'],
         'passed_with_warnings' => ['colour' => '#c27a0e', 'label' => 'passed with warnings'],
         'failed' => ['colour' => '#c4342d', 'label' => 'failed'],
-        'errored' => ['colour' => '#6d3fb5', 'label' => 'could not finish'],
+        'errored' => ['colour' => '#c4342d', 'label' => 'could not finish'],
     ];
 
     $style = $styles[$outcome] ?? null;
     $stale = $style && $subject !== null && ! $run->isFreshFor($subject);
-    $outline = $variant === 'outline';
+    // Errored is always drawn as an outline: seen, but quieter than a failure.
+    $outline = $variant === 'outline' || $outcome === 'errored';
     $ink = $outline ? $style['colour'] ?? '#000' : '#fff';
 
     $title = $style
@@ -58,7 +59,8 @@
                     <path d="M5.4 5.4l5.2 5.2M10.6 5.4l-5.2 5.2" fill="none" stroke="{{ $ink }}" stroke-width="1.8" stroke-linecap="round" />
                     @break
                 @case('errored')
-                    <path d="M8.9 3.6L5.6 8.6h2.6l-1 3.8 3.3-5h-2.6l1-3.8z" fill="{{ $ink }}" />
+                    <path d="M8 4.3v4.4" fill="none" stroke="{{ $ink }}" stroke-width="1.9" stroke-linecap="round" />
+                    <circle cx="8" cy="11.4" r="1.05" fill="{{ $ink }}" />
                     @break
             @endswitch
         </svg>
