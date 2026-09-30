@@ -23,6 +23,8 @@ const props = defineProps({
     findingLink: { type: Function, default: null },
     // Override any string. See DEFAULT_COPY.
     copy: { type: Object, default: () => ({}) },
+    // Show a clean pass as a single "All checks passed" line, with the detail behind a link.
+    summarisePass: { type: Boolean, default: true },
     // SVG markup for an icon beside the heading, drawn in the accent colour. Omit for none,
     // or use the "icon" slot for anything other than an SVG string.
     icon: { type: String, default: null },
@@ -70,6 +72,9 @@ const DEFAULT_COPY = {
     downgraded: 'This is a warning only. It will not count as a failure.',
     moreFindings: 'and :count more',
     allPassedInCategory: 'All :count passed',
+    allChecksPassed: 'All checks passed.',
+    moreInfo: 'More info',
+    lessInfo: 'Hide details',
 };
 
 // Placeholders are whole words, so :failed never matches the start of :failedWord.
@@ -160,6 +165,14 @@ const groups = computed(() => diag.categories.value.map((group) => {
 
 const passedCount = computed(() => diag.counts.value.passed);
 
+// A clean, current pass collapses to one line. Opening the detail lasts until the next run.
+const detailOpenFor = ref(null);
+const cleanPass = computed(() => mode.value === 'done' && run.value?.outcome === 'passed' && !stale.value);
+const showSummary = computed(() => props.summarisePass && cleanPass.value && detailOpenFor.value !== run.value?.id);
+function toggleDetail() {
+    detailOpenFor.value = detailOpenFor.value === run.value?.id ? null : run.value?.id;
+}
+
 function formatWhen(iso) {
     const date = new Date(iso);
     const now = new Date();
@@ -248,7 +261,20 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
         <template v-if="mode === 'never'">
             <slot name="empty" :checks="diag.checks.value" />
         </template>
+        <div v-else-if="showSummary" class="dx-pass">
+            <svg class="dx-pass__tick" viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="22" fill="currentColor" />
+                <path d="M14 24.5l7 7 13-14" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div class="dx-pass__text">
+                <p class="dx-pass__title" role="status">{{ t('allChecksPassed') }}</p>
+                <button type="button" class="dx-toggle dx-pass__more" @click="toggleDetail">{{ t('moreInfo') }}</button>
+            </div>
+        </div>
         <div v-else class="dx-body">
+            <div v-if="summarisePass && cleanPass" class="dx-body__less">
+                <button type="button" class="dx-toggle" @click="toggleDetail">{{ t('lessInfo') }}</button>
+            </div>
             <template v-for="group in groups" :key="group.name">
                 <div class="dx-cat">
                     <span>{{ group.name }}</span>
@@ -280,7 +306,7 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
                     <span>
                         <template v-if="mode === 'done' && run.duration_ms !== null">{{ t('completedIn', { duration: formatDuration(run.duration_ms) }) }}</template>
                         <template v-else-if="run && run.created_at">{{ t('startedAt', { when: formatWhen(run.created_at) }) }}</template>
-                        <template v-if="mode === 'done' && passedCount > 0">
+                        <template v-if="mode === 'done' && passedCount > 0 && !showSummary">
                             ·
                             <button type="button" class="dx-toggle" @click="showPassed = !showPassed">{{ showPassed ? t('hidePassed') : t('showPassed') }}</button>
                         </template>
@@ -396,6 +422,12 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
 .dx-find__error { color: var(--dx-err); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-word; }
 
 .dx-body { padding-bottom: 6px; }
+.dx-body__less { display: flex; justify-content: flex-end; padding: 8px 18px 0; }
+.dx-pass { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 28px 18px; }
+.dx-pass__tick { width: 56px; height: 56px; flex: none; color: var(--dx-pass); }
+.dx-pass__text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.dx .dx-pass__title { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.15; color: var(--dx-pass); letter-spacing: -0.01em; }
+.dx .dx-pass__more { font-size: 13px; }
 .dx-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 12px 18px; border-top: 1px solid var(--dx-border); font-size: 13px; color: var(--dx-muted); }
 .dx-foot b { color: var(--dx-fg); font-weight: 600; }
 .dx-foot__counts { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -406,6 +438,9 @@ defineExpose({ start, refresh: diag.refresh, reload: diag.load, state: diag });
     .dx .dx-row__main { grid-template-columns: 22px minmax(0, 1fr) 16px; }
     .dx-row__trailer { display: none; }
     .dx-find { margin-left: 18px; }
+    .dx-pass { gap: 12px; padding: 20px 16px; }
+    .dx-pass__tick { width: 40px; height: 40px; }
+    .dx .dx-pass__title { font-size: 21px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .dx-ic.running { animation: none; }

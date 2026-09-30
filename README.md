@@ -427,6 +427,7 @@ createApp(DiagnosticsPanel, {
 | `run-id` | | Show a particular run instead of the latest |
 | `can-run` | true | Show the Run button |
 | `hide-passed` | false | Start with passed checks hidden |
+| `summarise-pass` | true | Show a clean pass as "All checks passed." with the detail behind a More info link |
 | `finding-link` | | `(finding, result) => ({ href, label })` to link a finding to where it is fixed |
 | `copy` | | Override any string; see `DEFAULT_COPY` in the component |
 | `icon` | | SVG markup shown beside the heading in the accent colour. Omit for no icon |
