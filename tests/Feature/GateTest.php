@@ -43,3 +43,16 @@ it('goes stale after the configured ttl', function () {
         ->and(Diagnostics::gate($widget)->reason())->toBe('The last run is too old.');
     Carbon::setTestNow();
 });
+
+it('lets a suite accept errored runs', function () {
+    $widget = $this->widget(['explode' => true]);
+    Diagnostics::run($widget);
+
+    expect(Diagnostics::gate($widget)->passed())->toBeFalse();
+
+    Diagnostics::get('widgets')->acceptable(['passed', 'passed_with_warnings', 'errored']);
+    expect(Diagnostics::gate($widget)->passed())->toBeTrue();
+
+    config(['diagnostics.suites.widgets.acceptable' => ['passed']]);
+    expect(Diagnostics::gate($widget)->passed())->toBeFalse();
+});

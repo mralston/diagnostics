@@ -43,3 +43,11 @@ it('accepts a subject id when the suite is named', function () {
 
     expect(MarkerJob::$runs)->toBe(1);
 });
+
+it('uses the suite\'s acceptable outcomes in a chain', function () {
+    Mralston\Diagnostics\Facades\Diagnostics::get('widgets')->acceptable(['passed', 'passed_with_warnings', 'errored']);
+
+    Bus::chain([new RunDiagnosis('widgets', $this->widget(['explode' => true])), new MarkerJob])->dispatch();
+
+    expect(MarkerJob::$runs)->toBe(1);
+});

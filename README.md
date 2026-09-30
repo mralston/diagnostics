@@ -205,6 +205,7 @@ public function boot(): void
 | `queue()` | A queue and connection for this suite only |
 | `parallelBatches()` | A batch count for this suite only |
 | `disable()` | Check classes to leave out |
+| `acceptable()` | Run outcomes that open the gate and let the chain job continue. Defaults to `passed` and `passed_with_warnings` |
 
 A class may have more than one suite. When it does, name the suite wherever the API takes an
 optional suite key.
@@ -430,7 +431,8 @@ createApp(DiagnosticsPanel, {
 | `copy` | | Override any string; see `DEFAULT_COPY` in the component |
 | `icon` | | SVG markup shown beside the heading in the accent colour. Omit for no icon |
 
-Events: `loaded`, `started` and `completed`, each with the run. Slots: `icon` (anything other
+Events: `loaded` with the suite, run and gate; `started` with the run; `completed` with the
+run and the gate as the server sees it once the run has finished. Slots: `icon` (anything other
 than an SVG string), `header-actions`, `result-extra` (per result), `footer` and `empty`.
 
 ```js
@@ -518,7 +520,9 @@ if (! $gate->passed()) {
 }
 ```
 
-A gate is open when the latest completed run is fresh and its outcome is acceptable. A run is
+A gate is open when the latest completed run is fresh and its outcome is acceptable: `passed` or
+`passed_with_warnings` unless the suite sets its own list with `acceptable()`. A suite whose
+errors are the application's problem rather than the user's can accept `errored` too. A run is
 fresh when the subject's `updated_at` has not moved since the run started and the run is
 younger than `freshness.ttl_minutes`. `reason()` explains a closed gate in a sentence.
 

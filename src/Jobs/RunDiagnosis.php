@@ -42,7 +42,7 @@ class RunDiagnosis implements ShouldQueue
      * @param  string|null  $suite  The suite key, or null when the subject class has only one suite.
      * @param  Model|string|int  $subject  The model, or its key when $suite is given.
      * @param  bool  $requirePass  Throw DiagnosisFailed unless the outcome is acceptable.
-     * @param  string[]|null  $acceptable  Outcomes that count as a pass; defaults to config.
+     * @param  string[]|null  $acceptable  Outcomes that count as a pass; defaults to the suite's.
      * @param  bool  $reuseFresh  Skip the run when a fresh acceptable run already exists.
      */
     public function __construct(
@@ -71,7 +71,7 @@ class RunDiagnosis implements ShouldQueue
     {
         $suite = $this->suite !== null ? $manager->get($this->suite) : $manager->suiteFor($this->subjectClass);
         $subject = $suite->findSubject($this->subjectId) ?? throw SubjectNotFound::for($suite->getKey(), $this->subjectId);
-        $acceptable = $this->acceptable ?? (array) config('diagnostics.chain.acceptable', ['passed', 'passed_with_warnings']);
+        $acceptable = $this->acceptable ?? $suite->acceptableOutcomes();
 
         if ($this->reuseFresh) {
             $gate = $manager->gate($subject, $suite->getKey());

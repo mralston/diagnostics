@@ -46,8 +46,10 @@ return [
     |--------------------------------------------------------------------------
     |
     | RunDiagnosis runs a suite in-process as a step in Bus::chain() and stops
-    | the chain when the outcome is not in "acceptable". "errored" is left out
-    | deliberately: a run that could not check something must fail closed.
+    | the chain when the outcome is not in "acceptable"; the same list opens a
+    | suite's gate. "errored" is left out by default, so a run that could not
+    | check something fails closed. A suite can choose its own list with
+    | ->acceptable([...]) or the "acceptable" key under suites below.
     |
     */
 
@@ -139,6 +141,7 @@ return [
     |       'parallel_batches' => 4,
     |       'queue' => 'diagnostics',
     |       'connection' => 'redis',
+    |       'acceptable' => ['passed', 'passed_with_warnings', 'errored'],
     |   ],
     |
     */

@@ -178,15 +178,22 @@ async function start() {
     if (run.value) emit('started', run.value);
 }
 
+// "completed" fires for a run this panel watched finish, not for one that was already
+// finished when the page loaded. It carries the gate as the server now sees it, so a page
+// can follow the suite's rules without repeating them.
+let liveRunId = null;
 let completedFor = null;
-watch(() => [run.value?.id, run.value?.status], () => {
-    if (run.value && run.value.status === 'completed' && completedFor !== run.value.id) {
-        const wasWatching = completedFor !== null || diag.transport.value !== 'none';
+watch(() => [run.value?.id, run.value?.status], async () => {
+    if (!run.value) return;
+    if (run.value.status !== 'completed') {
+        liveRunId = run.value.id;
+        return;
+    }
+    if (liveRunId === run.value.id && completedFor !== run.value.id) {
         completedFor = run.value.id;
-        if (wasWatching) {
-            emit('completed', run.value);
-            diag.load();
-        }
+        const finished = run.value;
+        await diag.load();
+        emit('completed', finished, diag.gate.value);
     }
 });
 
@@ -197,7 +204,6 @@ watch(() => [run.value?.id, run.value?.status], () => {
     } else {
         await diag.load();
     }
-    completedFor = run.value?.status === 'completed' ? run.value.id : null;
     emit('loaded', { suite: diag.suite.value, run: run.value, gate: diag.gate.value });
     if (props.autoRun && props.canRun && (!diag.gate.value || !diag.gate.value.fresh) && !diag.isRunning.value) {
         start();

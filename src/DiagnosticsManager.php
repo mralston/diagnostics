@@ -127,7 +127,7 @@ class DiagnosticsManager
             ->latest('id')
             ->first();
 
-        return new Gate($definition, $subject, $run, (array) config('diagnostics.chain.acceptable', ['passed', 'passed_with_warnings']));
+        return new Gate($definition, $subject, $run, $definition->acceptableOutcomes());
     }
 
     public function dispatcher(): Dispatcher

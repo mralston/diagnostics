@@ -41,6 +41,9 @@ final class Suite
     /** @var string[] */
     private array $disabled = [];
 
+    /** @var string[]|null */
+    private ?array $acceptable = null;
+
     /** @var Collection<int, CheckDefinition>|null */
     private ?Collection $checks = null;
 
@@ -124,6 +127,19 @@ final class Suite
         return $this;
     }
 
+    /**
+     * Run outcomes that open this suite's gate and let its chain job continue. Defaults to
+     * config('diagnostics.chain.acceptable'): passed and passed_with_warnings.
+     *
+     * @param  string[]  $outcomes  Any of passed, passed_with_warnings, failed, errored.
+     */
+    public function acceptable(array $outcomes): self
+    {
+        $this->acceptable = array_values($outcomes);
+
+        return $this;
+    }
+
     public function register(): self
     {
         app(DiagnosticsManager::class)->register($this);
@@ -185,6 +201,18 @@ final class Suite
     public function disabledChecks(): array
     {
         return array_values(array_unique(array_merge($this->disabled, (array) $this->override('disabled'))));
+    }
+
+    /**
+     * Config wins over the registration, which wins over the package default.
+     *
+     * @return string[]
+     */
+    public function acceptableOutcomes(): array
+    {
+        return array_values((array) ($this->override('acceptable')
+            ?? $this->acceptable
+            ?? config('diagnostics.chain.acceptable', ['passed', 'passed_with_warnings'])));
     }
 
     /** @return Collection<int, CheckDefinition> */
