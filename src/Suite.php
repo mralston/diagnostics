@@ -33,6 +33,9 @@ final class Suite
 
     private ?Closure $afterFix = null;
 
+    /** @var array<int, class-string<\Throwable>> */
+    private array $fixFailsOn = [];
+
     /** @var string[] */
     private array $categories = [];
 
@@ -116,6 +119,21 @@ final class Suite
     public function afterFix(Closure $callback): self
     {
         $this->afterFix = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Exceptions whose message is written for users. One of these thrown by a
+     * fix, or by the afterFix callback, stops the fix like cannotFix() does:
+     * the message is shown and everything is rolled back. Use it for the
+     * application's own refusals, such as a record locked against changes.
+     *
+     * @param  array<int, class-string<\Throwable>>  $exceptions
+     */
+    public function fixFailsOn(array $exceptions): self
+    {
+        $this->fixFailsOn = $exceptions;
 
         return $this;
     }
@@ -274,6 +292,17 @@ final class Suite
         }
 
         return (bool) ($this->authorizeFix)($user, $subject);
+    }
+
+    public function explainsFixFailure(\Throwable $e): bool
+    {
+        foreach ($this->fixFailsOn as $class) {
+            if ($e instanceof $class) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function runAfterFix(Model $subject, \Mralston\Diagnostics\Models\DiagnosticResult $result, array $answers): void

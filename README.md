@@ -210,6 +210,7 @@ public function boot(): void
 | `acceptable()` | Run outcomes that open the gate and let the chain job continue. Defaults to `passed` and `passed_with_warnings` |
 | `authorizeFix()` | Who may apply fixes. Defaults to `authorize()` |
 | `afterFix()` | Work to do after every successful fix, such as recalculating totals. See [Fixing problems](#fixing-problems) |
+| `fixFailsOn()` | Exception classes whose message is written for users. A fix that runs into one fails with that message instead of erroring |
 
 A class may have more than one suite. When it does, name the suite wherever the API takes an
 optional suite key.
@@ -416,6 +417,18 @@ unless its rules say `required`, and a choice must be one of its options.
 a missing record it would need. The reason is shown to the user, nothing the fix wrote is kept,
 and the Fix button stays for another try. A fix that throws anything else is recorded as
 errored, logged, and rolled back in the same way.
+
+Your application may already refuse some changes with exceptions of its own, such as a listing
+that cannot be repriced once a tenant has paid a holding deposit. Name those classes with the
+suite's `fixFailsOn()`, and a fix that runs into one, in `fix()` or in `afterFix`, fails with
+the exception's message rather than a generic error:
+
+```php
+Diagnostics::suite('listing-check')
+    // ...
+    ->fixFailsOn([ListingLockedException::class])
+    ->register();
+```
 
 **Withholding a fix.** A fix is offered for every failed or warning result of a check that has
 one. When a particular problem is not one the fix can solve, say so from `run()`:

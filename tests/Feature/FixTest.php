@@ -236,3 +236,28 @@ it('applies a fix from the console', function () {
 
     expect($widget->refresh()->name)->toBe('Orville');
 });
+
+it('shows the message of an exception the suite marks as written for users, and rolls back', function () {
+    Diagnostics::get('widgets')
+        ->fixFailsOn([DomainException::class])
+        ->afterFix(fn (Widget $widget) => throw new DomainException('Widgets cannot be mended while they are on loan.'));
+
+    $widget = $this->widget(['broken' => true]);
+    $fix = Diagnostics::fix(resultFor(Diagnostics::run($widget), FailsWhenBroken::class));
+
+    expect($fix->status)->toBe(FixStatus::Failed)
+        ->and($fix->message)->toBe('Widgets cannot be mended while they are on loan.')
+        ->and($fix->error)->toBeNull()
+        ->and($widget->refresh()->broken)->toBeTrue();
+});
+
+it('still records other exceptions as errors when some are marked for users', function () {
+    Diagnostics::get('widgets')
+        ->fixFailsOn([DomainException::class])
+        ->afterFix(fn () => throw new LogicException('Internal detail'));
+
+    $fix = Diagnostics::fix(resultFor(Diagnostics::run($this->widget(['broken' => true])), FailsWhenBroken::class));
+
+    expect($fix->status)->toBe(FixStatus::Errored)
+        ->and($fix->message)->toBe('The fix could not be applied.');
+});

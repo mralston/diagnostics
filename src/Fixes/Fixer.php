@@ -92,15 +92,20 @@ class Fixer
                 $status = FixStatus::Failed;
                 $message = $e->getMessage();
             } catch (Throwable $e) {
-                $status = FixStatus::Errored;
-                $message = 'The fix could not be applied.';
-                $error = $e::class.': '.$e->getMessage();
+                if ($suite->explainsFixFailure($e)) {
+                    $status = FixStatus::Failed;
+                    $message = $e->getMessage();
+                } else {
+                    $status = FixStatus::Errored;
+                    $message = 'The fix could not be applied.';
+                    $error = $e::class.': '.$e->getMessage();
 
-                Log::error('Diagnostics fix threw.', [
-                    'run' => $run->id,
-                    'check' => $result->check_class,
-                    'exception' => $e,
-                ]);
+                    Log::error('Diagnostics fix threw.', [
+                        'run' => $run->id,
+                        'check' => $result->check_class,
+                        'exception' => $e,
+                    ]);
+                }
             }
 
             $durationMs = (int) ((hrtime(true) - $started) / 1_000_000);
