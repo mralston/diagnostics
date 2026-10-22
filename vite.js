@@ -20,14 +20,19 @@ export default function diagnostics(options = {}) {
 
     return {
         name: 'mralston-diagnostics',
-        config() {
+        config(config) {
+            // Setting server.fs.allow replaces Vite's default list rather than extending it,
+            // so the host's own root has to be listed again or the dev server refuses to
+            // serve the host's resources at all.
+            const root = fs.realpathSync(path.resolve(config.root ?? process.cwd()));
+
             return {
                 resolve: {
                     alias: { [alias]: js },
                 },
                 server: {
                     fs: {
-                        allow: [fs.realpathSync(here)],
+                        allow: [root, fs.realpathSync(here)],
                     },
                 },
             };
