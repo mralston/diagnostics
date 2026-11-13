@@ -21,6 +21,7 @@ final class CheckDefinition implements Arrayable
         public readonly int $order,
         public readonly ?int $timeout,
         public int $position = 0,
+        public readonly bool $prominent = false,
     ) {
     }
 
@@ -40,6 +41,7 @@ final class CheckDefinition implements Arrayable
             'parallel_safe' => $this->parallelSafe,
             'order' => $this->order,
             'position' => $this->position,
+            'prominent' => $this->prominent,
         ];
     }
 }

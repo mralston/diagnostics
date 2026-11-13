@@ -4,6 +4,7 @@ namespace Mralston\Diagnostics\Discovery;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Mralston\Diagnostics\Check as BaseCheck;
 use Mralston\Diagnostics\Contracts\Check;
 use Mralston\Diagnostics\Exceptions\InvalidCheck;
 use Mralston\Diagnostics\Suite;
@@ -65,6 +66,7 @@ class CheckDiscovery
                 parallelSafe: $check->isParallelSafe(),
                 order: $check->order(),
                 timeout: $check->timeout(),
+                prominent: $check instanceof BaseCheck && $check->isProminent(),
             );
         }
 

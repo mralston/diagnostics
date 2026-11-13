@@ -12,6 +12,8 @@ const props = defineProps({
     fixDisabled: { type: Boolean, default: false },
     // This row's fix is being applied.
     fixing: { type: Boolean, default: false },
+    // The check is marked prominent: a problem is drawn in the failure colour, not just its icon.
+    prominent: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['fix']);
@@ -51,7 +53,7 @@ function toggle() {
 </script>
 
 <template>
-    <div class="dx-row" :class="[state, { 'dx-row--open': open, 'dx-row--clickable': hasDetail }]">
+    <div class="dx-row" :class="[state, { 'dx-row--open': open, 'dx-row--clickable': hasDetail, 'dx-row--prominent': prominent && (state === 'failed' || item.downgraded) }]">
         <button type="button" class="dx-row__main" :aria-expanded="hasDetail ? open : undefined" :disabled="!hasDetail" @click="toggle">
             <OutcomeIcon :state="state" />
             <span class="dx-row__title">{{ item.title }}</span>
