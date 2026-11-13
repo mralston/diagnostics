@@ -26,6 +26,12 @@ abstract class Check implements CheckContract
 
     protected bool $canFail = true;
 
+    /**
+     * A prominent check's problems are repeated in a callout at the top of the
+     * panel, so they cannot be missed among the other results.
+     */
+    protected bool $prominent = false;
+
     protected bool $parallelSafe = true;
 
     protected int $order = 100;
@@ -59,6 +65,11 @@ abstract class Check implements CheckContract
     public function canFail(): bool
     {
         return $this->canFail;
+    }
+
+    public function isProminent(): bool
+    {
+        return $this->prominent;
     }
 
     public function isParallelSafe(): bool

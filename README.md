@@ -266,6 +266,7 @@ class RentWithinAreaRange extends Check
 | `$description` | null | Longer explanation, returned by the API |
 | `$category` | The sub-directory | Overrides the directory |
 | `$canFail` | true | False makes the check advisory: a failure is recorded as a warning |
+| `$prominent` | false | True repeats the check's problems in a callout at the top of the panel |
 | `$parallelSafe` | true | False runs the check alone, after the parallel batches |
 | `$order` | 100 | Sort weight within the category |
 | `$timeout` | config | Advisory seconds; PHP cannot interrupt a running method |
@@ -636,6 +637,12 @@ createApp(DiagnosticsPanel, {
 An advisory check (`$canFail = false`) that finds a problem is shown as a warning with the note
 "This is a warning only. It will not count as a failure." Change it with the `downgraded` key
 of `copy`.
+
+A check marked `$prominent = true` is for the one problem nobody may overlook. When it fails, or
+an advisory one finds a problem, the panel repeats its title, summary and findings in a red
+callout above the results, and draws its row in the failure colour. Prominence changes only how
+the result looks: whether it blocks the gate still follows `$canFail` and the suite's acceptable
+outcomes. Change the callout's heading with the `prominentHeading` key of `copy`.
 
 With Echo, the panel subscribes to the run's private channel. It re-reads the run on a slow
 timer as a safety net, and falls back to polling if the subscription fails.

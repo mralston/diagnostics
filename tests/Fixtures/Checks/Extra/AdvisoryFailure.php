@@ -12,6 +12,8 @@ class AdvisoryFailure extends Check
 
     protected bool $canFail = false;
 
+    protected bool $prominent = true;
+
     public function run(Widget $widget): Result
     {
         return $widget->advisory_broken ? $this->fail('Advisory problem') : $this->pass();

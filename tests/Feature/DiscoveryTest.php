@@ -2,6 +2,7 @@
 
 use Mralston\Diagnostics\Facades\Diagnostics;
 use Mralston\Diagnostics\Tests\Fixtures\Checks\Basics\AlwaysPasses;
+use Mralston\Diagnostics\Tests\Fixtures\Checks\Extra\AdvisoryFailure;
 use Mralston\Diagnostics\Tests\Fixtures\Checks\Extra\Explodes;
 
 it('discovers checks, derives categories from directories and sorts them', function () {
@@ -14,6 +15,14 @@ it('discovers checks, derives categories from directories and sorts them', funct
         ->and($checks->first()->position)->toBe(1)
         ->and($checks->take(3)->pluck('title')->all())->toBe(['Always passes', 'Fails when broken', 'Warns when asked'])
         ->and($checks->slice(3)->pluck('title')->all())->toBe(['Advisory failure', 'Explodes on demand', 'Runs alone', 'Skips without colour']);
+});
+
+it('marks prominent checks, and lists the flag with the suite\'s checks', function () {
+    $checks = Diagnostics::get('widgets')->checks();
+
+    expect($checks->where('prominent', true)->pluck('class')->all())->toBe([AdvisoryFailure::class])
+        ->and($checks->firstWhere('class', AdvisoryFailure::class)->toArray()['prominent'])->toBeTrue()
+        ->and($checks->first()->toArray()['prominent'])->toBeFalse();
 });
 
 it('leaves out checks disabled in config', function () {

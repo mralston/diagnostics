@@ -92,6 +92,7 @@ const DEFAULT_COPY = {
     fixFailed: 'Could not fix ":title": :message',
     fixError: 'The fix for ":title" could not be applied.',
     dismiss: 'Dismiss',
+    prominentHeading: 'Must be put right',
 };
 
 // Placeholders are whole words, so :failed never matches the start of :failedWord.
@@ -249,6 +250,16 @@ const groups = computed(() => diag.categories.value.map((group) => {
 
 const passedCount = computed(() => diag.counts.value.passed);
 
+// Checks marked prominent repeat their problems in a callout above the results. A failure the
+// check was not allowed to make (downgraded to a warning) counts as a problem here too.
+const prominentClasses = computed(() => new Set(diag.checks.value.filter((c) => c.prominent).map((c) => c.class)));
+const isProminent = (item) => prominentClasses.value.has(item.check_class ?? item.class);
+const prominentProblems = computed(() => {
+    if (mode.value !== 'done') return [];
+    return groups.value.flatMap((group) => group.items)
+        .filter((item) => isProminent(item) && (item.outcome === 'failed' || item.downgraded));
+});
+
 // A clean, current pass collapses to one line. Opening the detail lasts until the next run.
 const detailOpenFor = ref(null);
 const cleanPass = computed(() => mode.value === 'done' && run.value?.outcome === 'passed' && !stale.value);
@@ -347,6 +358,25 @@ defineExpose({ start, fix: onFix, refresh: diag.refresh, reload: diag.load, stat
         <div v-else-if="mode === 'abandoned'" class="dx-notice" role="status">{{ t('abandoned') }}</div>
         <div v-else-if="stale && !(fixNote && diag.isRunning.value)" class="dx-notice" role="status">{{ run?.fixed_at ? t('staleFixed') : t('stale') }}</div>
 
+        <div v-if="prominentProblems.length" class="dx-alert" role="alert">
+            <div v-for="item in prominentProblems" :key="item.id" class="dx-alert__item">
+                <svg class="dx-alert__icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3 2 20.5h20L12 3z" fill="currentColor" />
+                    <path d="M12 9.5v5" stroke="var(--dx-fail)" stroke-width="2.4" stroke-linecap="round" />
+                    <circle cx="12" cy="17.6" r="1.4" fill="var(--dx-fail)" />
+                </svg>
+                <div class="dx-alert__text">
+                    <p class="dx-alert__label">{{ t('prominentHeading') }}</p>
+                    <p class="dx-alert__title">{{ item.title }}</p>
+                    <p v-if="item.summary" class="dx-alert__summary">{{ item.summary }}</p>
+                    <p v-for="(finding, i) in item.findings ?? []" :key="i" class="dx-alert__finding">
+                        <span>{{ finding.message }}</span>
+                        <a v-if="findingLink && findingLink(finding, item)" :href="findingLink(finding, item).href" class="dx-alert__link">{{ findingLink(finding, item).label }} ›</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <template v-if="mode === 'never'">
             <slot name="empty" :checks="diag.checks.value" />
         </template>
@@ -374,6 +404,7 @@ defineExpose({ start, fix: onFix, refresh: diag.refresh, reload: diag.load, stat
                     v-for="item in group.items"
                     :key="item.id"
                     :item="item"
+                    :prominent="isProminent(item)"
                     :copy="{ running: t('running'), downgraded: t('downgraded'), moreFindings: t('moreFindings'), fixIt: t('fixIt'), applying: t('applying'), fixedTrailer: t('fixedTrailer') }"
                     :finding-link="findingLink"
                     :can-fix="allowFix && mode === 'done'"
@@ -494,6 +525,17 @@ defineExpose({ start, fix: onFix, refresh: diag.refresh, reload: diag.load, stat
 .dx-notice--fix.warn { color: var(--dx-warn); }
 .dx-notice--fix.bad { color: var(--dx-fail); }
 
+.dx-alert { background: var(--dx-fail); color: #fff; border-bottom: 1px solid var(--dx-fail); }
+.dx-alert__item { display: flex; gap: 14px; align-items: flex-start; padding: 14px 18px; }
+.dx-alert__item + .dx-alert__item { border-top: 1px solid rgba(255, 255, 255, 0.3); }
+.dx-alert__icon { flex: none; width: 34px; height: 34px; color: #fff; }
+.dx-alert__text { min-width: 0; }
+.dx .dx-alert p { margin: 0; color: #fff; }
+.dx .dx-alert__label { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.85; }
+.dx .dx-alert__title { font-size: 17px; font-weight: 700; line-height: 1.3; }
+.dx .dx-alert__summary, .dx .dx-alert__finding { font-size: 14px; margin-top: 4px; }
+.dx .dx-alert__link { color: #fff; font-weight: 600; text-decoration: underline; margin-left: 8px; white-space: nowrap; }
+
 .dx-cat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 18px 4px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dx-muted); }
 .dx-cat small { font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .dx-cat small.bad { color: var(--dx-fail); }
@@ -510,6 +552,8 @@ defineExpose({ start, fix: onFix, refresh: diag.refresh, reload: diag.load, stat
 .dx-row__trailer { font-size: 12px; color: var(--dx-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dx-row__chev { color: var(--dx-muted); display: inline-flex; justify-content: center; transition: transform 0.15s; }
 .dx-row--open .dx-row__chev { transform: rotate(180deg); }
+.dx-row--prominent { background: color-mix(in srgb, var(--dx-fail) 8%, var(--dx-surface)); box-shadow: inset 4px 0 0 var(--dx-fail); }
+.dx-row--prominent .dx-row__title { color: var(--dx-fail); font-weight: 700; }
 
 .dx-ic { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex: none; }
 .dx-ic.passed { background: var(--dx-pass); }
